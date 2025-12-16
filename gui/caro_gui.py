@@ -2,6 +2,8 @@ import tkinter as tk
 from threading import Thread
 import time
 import random
+from ai.minimax import find_best_move, X, O, EMPTY
+from game.board import CaroBoard
 
 # --- XỬ LÝ THƯ VIỆN ẢNH ---
 try:
@@ -41,12 +43,26 @@ class InternalBoard:
         return False
 
 class InternalAI:
-    def get_move(self, board):
-        time.sleep(0.5)
-        size = len(board)
-        empties = [(r, c) for r in range(size) for c in range(size) if board[r][c] == 0]
-        return random.choice(empties) if empties else None
+    def __init__(self, depth=3):
+        self.depth = depth
 
+    def get_move(self, board_gui):
+        size = len(board_gui)
+
+        #Convert board GUI -> board AI (0,1,2)
+        board_ai = [[EMPTY for _ in range(size)] for _ in range(size)]
+        for r in range(size):
+            for c in range(size):
+                if board_gui[r][c] == 1:        # người
+                    board_ai[r][c] = X          # 1
+                elif board_gui[r][c] == -1:     # máy
+                    board_ai[r][c] = O          # 2
+                else:
+                    board_ai[r][c] = EMPTY      # 0
+
+        #Gọi thuật toán minimax + alpha–beta 
+        move = find_best_move(board_ai, O, depth=self.depth)
+        return move
 # =================================================================================
 # PHẦN 2: GIAO DIỆN CARO GUI
 # =================================================================================
