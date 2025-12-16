@@ -50,19 +50,31 @@ class InternalAI:
         size = len(board_gui)
 
         #Convert board GUI -> board AI (0,1,2)
+        # board_gui: 1 = người (X), -1 = máy (O), 0 = trống
+        # board_ai: X=1 (người), O=2 (máy), EMPTY=0
         board_ai = [[EMPTY for _ in range(size)] for _ in range(size)]
         for r in range(size):
             for c in range(size):
-                if board_gui[r][c] == 1:        # người
+                if board_gui[r][c] == 1:        # người chơi
                     board_ai[r][c] = X          # 1
-                elif board_gui[r][c] == -1:     # máy
+                elif board_gui[r][c] == -1:     # AI/máy
                     board_ai[r][c] = O          # 2
                 else:
                     board_ai[r][c] = EMPTY      # 0
 
-        #Gọi thuật toán minimax + alpha–beta 
-        move = find_best_move(board_ai, O, depth=self.depth)
-        return move
+        print(f"[AI] board_gui: {board_gui}")
+        print(f"[AI] board_ai: {board_ai}")
+        
+        #Gọi thuật toán minimax + alpha–beta
+        try:
+            move = find_best_move(board_ai, O, depth=self.depth)
+            print(f"[AI] find_best_move trả về: {move}")
+            return move
+        except Exception as e:
+            print(f"[AI] Error: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 # =================================================================================
 # PHẦN 2: GIAO DIỆN CARO GUI
 # =================================================================================
@@ -402,7 +414,9 @@ class CaroGUI:
 
     def on_click(self, event):
         # Chặn click khi đang đếm ngược hoặc AI đang nghĩ
-        if self.in_countdown or not self.game_started or self.thinking: return
+        if self.in_countdown or not self.game_started or self.thinking: 
+            print(f"Chặn click: in_countdown={self.in_countdown}, game_started={self.game_started}, thinking={self.thinking}")
+            return
         if self.current_mode == "MvM": return 
         
         c = event.x // self.inner_cell
@@ -410,16 +424,19 @@ class CaroGUI:
         if not (0 <= r < self.size and 0 <= c < self.size): return
         if self.board_logic.board[r][c] != 0: return
 
+        print(f"Người đánh: ({r}, {c}), current_player={self.current_player}")
         self.execute_move(r, c, self.current_player)
         if self.board_logic.check_win(r, c, self.current_player):
-            print("Win!")
+            print("Người thắng!")
             self.game_started = False
             self.stop_timer()
             return
 
         self.current_player *= -1
+        print(f"Chuyển sang AI, current_player={self.current_player}")
         if self.current_mode == "PvM" and self.current_player == -1:
-             Thread(target=self.run_ai_thread, daemon=True).start()
+            print("Gọi AI thread...")
+            Thread(target=self.run_ai_thread, daemon=True).start()
 
     def execute_move(self, r, c, player):
         self.board_logic.board[r][c] = player
@@ -450,15 +467,22 @@ class CaroGUI:
         self.in_countdown = False
 
     def run_ai_thread(self):
+        print(f"AI thread bắt đầu, current_player={self.current_player}")
         self.thinking = True
         move = self.ai.get_move(self.board_logic.board)
-        self.root.after(0, lambda: self.after_ai_move(move))
+        print(f"AI trả về move: {move}")
+        self.root.after(500, lambda: self.after_ai_move(move))
 
     def after_ai_move(self, move):
-        if not self.game_started: return
+        print(f"after_ai_move: move={move}, game_started={self.game_started}, current_player={self.current_player}")
+        if not self.game_started: 
+            print("Game chưa start")
+            return
         if move:
             r, c = move
+            print(f"Kiểm tra ô ({r}, {c}): board[{r}][{c}] = {self.board_logic.board[r][c]}")
             if self.board_logic.board[r][c] == 0:
+                print(f"AI đánh: ({r}, {c})")
                 self.execute_move(r, c, self.current_player)
                 if self.board_logic.check_win(r, c, self.current_player):
                     print("Máy thắng")
@@ -466,8 +490,13 @@ class CaroGUI:
                     self.thinking = False
                     self.stop_timer()
                     return
+            else:
+                print(f"Ô ({r}, {c}) không trống, bỏ qua")
+        else:
+            print("Move là None")
         self.thinking = False
         self.current_player *= -1
+        print(f"Chuyển sang người, current_player={self.current_player}")
         if self.current_mode == "MvM" and self.game_started: self.root.after(500, self.run_auto_play)
 
     def run(self):
