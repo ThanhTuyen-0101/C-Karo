@@ -251,6 +251,11 @@ def find_best_move(board, player, depth=3):
     - Trả về: (r, c) là nước đi được chọn.
     """
     _, move = minimax_ab(board, depth, -float("inf"), float("inf"), True, player)
+    if move is None:
+        # Nếu không có nước đi tốt, trả về nước random
+        moves = generate_legal_moves(board)
+        if moves:
+            return moves[0]
     return move
 
 
