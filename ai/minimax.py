@@ -2,43 +2,36 @@
 
 SIZE  = 15      # Kích thước bàn cờ 15x15
 EMPTY = 0       # Ô trống
-X     = 1       # Quân X
-O     = 2       # Quân O
+X     = 1       # Quân X (người)
+O     = 2       # Quân O (AI)
 
-# 4 hướng chính để kiểm tra: ngang, dọc, chéo xuống phải, chéo xuống trái
+# 4 hướng chính: ngang, dọc, chéo xuống phải, chéo xuống trái
 DIRECTIONS = [
-    (0, 1),     # ngang
-    (1, 0),     # dọc
-    (1, 1),     # chéo xuống phải
-    (1, -1),    # chéo xuống trái
+    (0, 1),
+    (1, 0),
+    (1, 1),
+    (1, -1),
 ]
 
 
 # ================== HÀM TIỆN ÍCH CƠ BẢN ==================
 
 def in_board(r, c):
-    """
-    Kiểm tra (r, c) có nằm trong bàn cờ hay không.
-    Trả về True nếu nằm trong, False nếu ngoài.
-    """
+    """Kiểm tra (r, c) có nằm trong bàn cờ hay không."""
     return 0 <= r < SIZE and 0 <= c < SIZE
 
 
 def get_opponent(player):
-    """
-    Trả về quân đối thủ của player.
-    Nếu player là X thì trả về O, ngược lại.
-    """
+    """Trả về quân đối thủ của player."""
     return X if player == O else O
 
 
-# ================== HÀM SINH NƯỚC ĐI HỢP LỆ (ƯU TIÊN GẦN QUÂN NGƯỜI) ==================
+# ================== HÀM SINH NƯỚC ĐI HỢP LỆ (ƯU TIÊN GẦN NGƯỜI) ==================
 
 def generate_legal_moves(board, radius=4):
     """
     Sinh danh sách các nước đi hợp lệ (r, c).
 
-    Tối ưu:
     - Chỉ sinh các ô trống nằm trong vùng bao quanh tất cả quân đã đánh,
       nới thêm 'radius' ô.
     - Bàn trống -> mọi ô trống đều hợp lệ.
@@ -81,14 +74,13 @@ def generate_legal_moves(board, radius=4):
             if board[r][c] == EMPTY:
                 moves.append((r, c))
 
-    # --- SẮP XẾP: ƯU TIÊN GẦN QUÂN NGƯỜI CHƠI (X) ---
+    # --- ƯU TIÊN GẦN QUÂN NGƯỜI (X) ---
     opp_cells = [(r, c) for r in range(size) for c in range(size)
-                 if board[r][c] == X]  # giả sử người chơi là X
+                 if board[r][c] == X]
 
     if opp_cells:
         def dist_to_opp(m):
             r, c = m
-            # khoảng cách Manhattan tới quân người gần nhất
             return min(abs(r - orr) + abs(c - occ) for orr, occ in opp_cells)
         moves.sort(key=dist_to_opp)
     else:
@@ -111,13 +103,10 @@ def is_exact_five(board, r, c, dr, dc):
     if player == EMPTY:
         return False
 
-    # Kiểm tra (r, c) có phải là đầu chuỗi không
     pr, pc = r - dr, c - dc
     if in_board(pr, pc) and board[pr][pc] == player:
-        # Nếu ô trước đó cùng màu => không phải đầu chuỗi
         return False
 
-    # Đếm số quân liên tiếp cùng màu
     cnt = 0
     cr, cc = r, c
     while in_board(cr, cc) and board[cr][cc] == player and cnt <= 5:
@@ -125,11 +114,9 @@ def is_exact_five(board, r, c, dr, dc):
         cr += dr
         cc += dc
 
-    # Phải đúng 5 quân
     if cnt != 5:
         return False
 
-    # Ô ngay sau chuỗi 5 không được cùng màu (tránh >5 quân)
     if in_board(cr, cc) and board[cr][cc] == player:
         return False
 
@@ -137,12 +124,7 @@ def is_exact_five(board, r, c, dr, dc):
 
 
 def check_winner(board):
-    """
-    Kiểm tra xem có người thắng chưa.
-    Trả về:
-    - X hoặc O nếu có người thắng (đúng 5 quân liên tiếp).
-    - None nếu chưa ai thắng.
-    """
+    """Trả về X hoặc O nếu có người thắng, None nếu chưa."""
     for r in range(SIZE):
         for c in range(SIZE):
             if board[r][c] in (X, O):
@@ -155,10 +137,7 @@ def check_winner(board):
 # ================== HÀM ĐÁNH GIÁ (HEURISTIC) ==================
 
 def count_sequence(board, r, c, dr, dc, player):
-    """
-    Đếm độ dài chuỗi liên tiếp bắt đầu tại (r, c) theo hướng (dr, dc) cho player.
-    Giả sử (r, c) là ô ĐẦU chuỗi (đã kiểm tra bên ngoài).
-    """
+    """Đếm độ dài chuỗi liên tiếp bắt đầu tại (r,c) theo hướng (dr,dc)."""
     length = 0
     cr, cc = r, c
     while in_board(cr, cc) and board[cr][cc] == player:
@@ -170,16 +149,12 @@ def count_sequence(board, r, c, dr, dc, player):
 
 def evaluate(board, player):
     """
-    Hàm heuristic đơn giản để đánh giá trạng thái bàn cờ đối với player.
+    Đánh giá trạng thái bàn cờ cho player.
 
-    Ý tưởng:
-    - Đếm số chuỗi 2, 3, 4 của player và của đối thủ.
-    - Cho điểm:
-      + Chuỗi 2: 10 điểm
-      + Chuỗi 3: 50 điểm
-      + Chuỗi 4: 200 điểm
-    - ƯU TIÊN PHÒNG THỦ:
-      score = score_player - 3 * score_opponent
+    - Chuỗi 2: 10
+    - Chuỗi 3: 50
+    - Chuỗi 4: 200
+    - score = my_score - 3 * opp_score  (phòng thủ mạnh)
     """
     opponent = get_opponent(player)
 
@@ -189,7 +164,6 @@ def evaluate(board, player):
             for c in range(SIZE):
                 if board[r][c] == p:
                     for dr, dc in DIRECTIONS:
-                        # Chỉ tính tại ĐẦU chuỗi để không đếm trùng
                         pr, pc = r - dr, c - dc
                         if in_board(pr, pc) and board[pr][pc] == p:
                             continue
@@ -204,47 +178,127 @@ def evaluate(board, player):
 
     my_score = score_for(player)
     opp_score = score_for(opponent)
-    return my_score - 3 * opp_score  # nhân 3 để ưu tiên chặn đối thủ
+    return my_score - 3 * opp_score
+
+
+# ================== HÀM TÌM NƯỚC CHẶN BẮT BUỘC ==================
+
+def find_block_move(board, player):
+    """
+    Tìm nước đi CHẶN đối thủ.
+    Ưu tiên:
+    1) Chặn các ô mà đối thủ có thể tạo chuỗi >= 4.
+    2) Nếu không có, chặn các ô mà đối thủ tạo được chuỗi = 3.
+    """
+    opponent = get_opponent(player)
+    size = len(board)
+
+    block_four = None
+    block_three = None
+
+    for r in range(size):
+        for c in range(size):
+            if board[r][c] != EMPTY:
+                continue
+
+            board[r][c] = opponent
+
+            max_len = 1
+            for dr, dc in DIRECTIONS:
+                length = 1
+                cr, cc = r + dr, c + dc
+                while in_board(cr, cc) and board[cr][cc] == opponent:
+                    length += 1
+                    cr += dr
+                    cc += dc
+                cr, cc = r - dr, c - dc
+                while in_board(cr, cc) and board[cr][cc] == opponent:
+                    length += 1
+                    cr -= dr
+                    cc -= dc
+
+                if length > max_len:
+                    max_len = length
+
+            board[r][c] = EMPTY
+
+            if max_len >= 4:
+                return (r, c)      # chặn chuỗi 4+ -> ưu tiên cao nhất
+            elif max_len == 3 and block_three is None:
+                block_three = (r, c)
+
+    if block_three is not None:
+        return block_three
+
+    return None
+
+
+# ================== HÀM TÌM NƯỚC TẤN CÔNG BẮT BUỘC ==================
+
+def find_attack_move(board, player):
+    """
+    Tìm nước đi TẤN CÔNG cho player (AI):
+    Chỉ ưu tiên các nước ĐÁNH VÀO LÀ THẮNG NGAY (chuỗi >=5).
+    Không ưu tiên riêng cho 3 -> 4.
+    """
+    size = len(board)
+
+    for r in range(size):
+        for c in range(size):
+            if board[r][c] != EMPTY:
+                continue
+
+            # Giả lập player đánh vào (r, c)
+            board[r][c] = player
+
+            max_len = 1
+            for dr, dc in DIRECTIONS:
+                length = 1
+                cr, cc = r + dr, c + dc
+                while in_board(cr, cc) and board[cr][cc] == player:
+                    length += 1
+                    cr += dr
+                    cc += dc
+                cr, cc = r - dr, c - dc
+                while in_board(cr, cc) and board[cr][cc] == player:
+                    length += 1
+                    cr -= dr
+                    cc -= dc
+
+                if length > max_len:
+                    max_len = length
+
+            board[r][c] = EMPTY  # hoàn tác
+
+            if max_len >= 5:
+                # Đánh vào là có chuỗi 5+ -> chọn ngay
+                return (r, c)
+
+    # Không có nước thắng ngay
+    return None
+
 
 
 # ================== MINIMAX + ALPHA–BETA PRUNING ==================
 
 def minimax_ab(board, depth, alpha, beta, maximizing, player):
-    """
-    Thuật toán Minimax có cắt tỉa alpha–beta.
-
-    Tham số:
-    - board      : trạng thái bàn cờ hiện tại
-    - depth      : độ sâu tìm kiếm còn lại
-    - alpha      : giá trị tốt nhất hiện tại của nhánh MAX
-    - beta       : giá trị tốt nhất hiện tại của nhánh MIN
-    - maximizing : True nếu đang đến lượt player (MAX), False nếu lượt đối thủ (MIN)
-    - player     : quân mà AI điều khiển (X hoặc O)
-
-    Trả về:
-    - (giá_trị_minimax, nước_đi_tốt_nhất)
-    """
-    # 1. Kiểm tra thắng/thua sớm
+    """Minimax có cắt tỉa alpha–beta, trả về (giá trị, nước đi tốt nhất)."""
     winner = check_winner(board)
     if winner == player:
-        return 10_000, None            # player thắng
+        return 10_000, None
     elif winner == get_opponent(player):
-        return -10_000, None           # đối thủ thắng
+        return -10_000, None
 
-    # 2. Nếu đạt độ sâu giới hạn thì trả về giá trị heuristic
     if depth == 0:
         return evaluate(board, player), None
 
-    # 3. Sinh các nước đi hợp lệ
     moves = generate_legal_moves(board)
     if not moves:
-        return 0, None                  # hòa
+        return 0, None
 
-    # 4. Nhánh MAX (AI)
     if maximizing:
         best_val = -float("inf")
         best_move = None
-
         for r, c in moves:
             board[r][c] = player
             val, _ = minimax_ab(board, depth - 1, alpha, beta, False, player)
@@ -256,18 +310,13 @@ def minimax_ab(board, depth, alpha, beta, maximizing, player):
 
             if best_val > alpha:
                 alpha = best_val
-
             if beta <= alpha:
                 break
-
         return best_val, best_move
-
-    # 5. Nhánh MIN (đối thủ)
     else:
         opp = get_opponent(player)
         best_val = float("inf")
         best_move = None
-
         for r, c in moves:
             board[r][c] = opp
             val, _ = minimax_ab(board, depth - 1, alpha, beta, True, player)
@@ -279,18 +328,31 @@ def minimax_ab(board, depth, alpha, beta, maximizing, player):
 
             if best_val < beta:
                 beta = best_val
-
             if beta <= alpha:
                 break
-
         return best_val, best_move
 
 
+# ================== HÀM CHỌN NƯỚC ĐI CUỐI CÙNG ==================
+
 def find_best_move(board, player, depth=3):
     """
-    Hàm public để AI chọn nước đi tốt nhất cho 'player' trên 'board'
-    bằng Minimax + Alpha–Beta.
+    Thứ tự ưu tiên:
+    1) Nước TẤN CÔNG (thắng ngay hoặc tạo chuỗi 4).
+    2) Nước CHẶN (chuỗi 4, rồi chuỗi 3 của đối thủ).
+    3) Minimax + Alpha–Beta.
     """
+
+
+    attack_move = find_attack_move(board, player)
+    if attack_move is not None:
+        return attack_move
+    
+    block_move = find_block_move(board, player)
+    if block_move is not None:
+        return block_move
+
+    # 3. Không có tấn công/chặn đặc biệt, dùng minimax
     _, move = minimax_ab(board, depth, -float("inf"), float("inf"), True, player)
     if move is None:
         moves = generate_legal_moves(board)
@@ -302,9 +364,6 @@ def find_best_move(board, player, depth=3):
 # ================== VÍ DỤ CHẠY THỬ TRONG CONSOLE ==================
 
 if __name__ == "__main__":
-    # Khởi tạo bàn cờ trống 15x15
     board = [[EMPTY for _ in range(SIZE)] for _ in range(SIZE)]
-
-    # Ví dụ: cho AI chơi quân X, tìm nước đi tốt nhất ở trạng thái ban đầu
     best = find_best_move(board, X, depth=3)
     print("Best move for X:", best)
