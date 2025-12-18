@@ -1,7 +1,7 @@
 import flet as ft
 from gui.caro_gui import CaroGUI
 from game.board import CaroBoard
-from ai.ai_caro import CaroAI
+from ai.minimax import CaroAI
 
 
 # Hàm main của Flet bắt buộc phải nhận tham số 'page'
