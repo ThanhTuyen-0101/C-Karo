@@ -1,4 +1,4 @@
-# ================== HÀNG SỐ VÀ HUỚNG ĐI ==================
+﻿# ================== HÀNG SỐ VÀ HƯỚNG ĐI ==================
 
 SIZE = 15        # Kích thước bàn cờ 15x15
 EMPTY = 0        # Ô trống
@@ -145,7 +145,7 @@ def evaluate(board, player):
     Đánh giá trạng thái bàn cờ cho player.
     
     - Chuỗi 2: 10 điểm
-    - Chuỗi 3: 50 điểm  
+    - Chuỗi 3: 50 điểm
     - Chuỗi 4: 200 điểm
     - score = my_score - 3 * opp_score (phòng thủ mạnh)
     """
@@ -207,7 +207,7 @@ def find_block_move(board, player):
                     length += 1
                     cr += dr
                     cc += dc
-                # Hướng lùi  
+                # Hướng lùi
                 cr, cc = r - dr, c - dc
                 while in_board(cr, cc) and board[cr][cc] == opponent:
                     length += 1
@@ -367,9 +367,9 @@ class CaroAI:
         
         Args:
             board: Ma trận 15x15 đại diện bàn cờ
-            level: 1=Dễ (depth=2), 2=Vừa (depth=3), 3=Khó (depth=4)
+            level: 1=Dễ (depth=1), 2=Vừa (depth=2), 3=Khó (depth=3)
         """
-        depth = level + 1  # Dễ:2, Vừa:3, Khó:4
+        depth = level  # Dễ:1, Vừa:2, Khó:3
         return find_best_move(board, O, depth)
 
     def find_best_move(self, board, player):
