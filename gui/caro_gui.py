@@ -1,507 +1,503 @@
-import tkinter as tk
-from threading import Thread
-import time
-import random
-from ai.minimax import find_best_move, X, O, EMPTY
-from game.board import CaroBoard
+import flet as ft
+import asyncio
 
-# --- XỬ LÝ THƯ VIỆN ẢNH ---
-try:
-    from PIL import Image, ImageTk, ImageDraw, ImageOps
-    HAS_PIL = True
-except ImportError:
-    HAS_PIL = False
-    print("⚠️ LƯU Ý: Chưa cài Pillow. Hãy chạy 'pip install Pillow' để thấy ảnh tròn đẹp.")
 
-# =================================================================================
-# PHẦN 1: LOGIC & AI
-# =================================================================================
-class InternalBoard:
-    def __init__(self, size=15):
-        self.size = size
-        self.board = [[0] * size for _ in range(size)]
+# === CẤU HÌNH MÀU SẮC ===
+MAIN_BG_COLOR = "#f9e27d"       # Nền vàng
+MENU_BG_COLOR = "#f9e27d"       # Nền menu
+TEXT_COLOR = "#000000"          # Màu chữ Đen
 
-    def place(self, row, col, player):
-        if 0 <= row < self.size and 0 <= col < self.size and self.board[row][col] == 0:
-            self.board[row][col] = player
-            return self.check_win(row, col, player)
-        return False
 
-    def check_win(self, row, col, player):
-        directions = [(0,1), (1,0), (1,1), (1,-1)]
+# Cấu hình bàn cờ
+BOARD_BG_COLOR = "#ffffff"      # Nền trắng
+BOARD_LINE_COLOR = "#000000"    # Kẻ đen
+
+
+X_COLOR = "#d32f2f"
+O_COLOR = "#1976d2"
+
+
+# === CẤU HÌNH KÍCH THƯỚC ===
+MENU_WIDTH = 400
+BOARD_SIZE = 500
+TOP_OFFSET = 175
+
+
+TOTAL_WIDTH = MENU_WIDTH + BOARD_SIZE
+TOTAL_HEIGHT = BOARD_SIZE + TOP_OFFSET
+
+
+BLOCK_COUNT = 5
+SUB_CELL_COUNT = 3
+
+
+class CaroGUI:
+    def __init__(self, page: ft.Page, board_logic, ai_engine):
+        self.page = page
+        self.board_logic = board_logic
+        self.ai = ai_engine
+
+
+        self.page.title = "Game Caro Big Win Notification"
+        self.page.bgcolor = MAIN_BG_COLOR
+        self.page.padding = 0
+        self.page.margin = 0
+        self.page.spacing = 0
+
+
+        # Font chữ Fredoka One (Tròn, Mập, Đậm)
+        self.page.fonts = {
+            "FredokaOne": "https://raw.githubusercontent.com/google/fonts/master/ofl/fredokaone/FredokaOne-Regular.ttf"
+        }
+        self.page.theme = ft.Theme(font_family="FredokaOne")
+
+
+        # === CẤU HÌNH CỬA SỔ ===
+        self.page.window_width = TOTAL_WIDTH + 16
+        self.page.window_height = TOTAL_HEIGHT + 39
+        self.page.window_resizable = False
+        self.page.window_maximizable = False
+       
+        self.page.update()
+
+
+        self.is_playing = False
+        self.history = []
+        self.game_mode = "PvM"
+        self.level = 1
+        self.ui_cells = {}
+        self.win_overlay_container = None # Biến lưu overlay thắng
+
+
+        # --- GIAO DIỆN CHÍNH ---
+        self.page.add(
+            ft.Row(
+                width=TOTAL_WIDTH,
+                height=TOTAL_HEIGHT,
+                spacing=0,
+                controls=[
+                    # 1. MENU
+                    ft.Container(
+                        width=MENU_WIDTH,
+                        height=TOTAL_HEIGHT,
+                        bgcolor=MENU_BG_COLOR,
+                        padding=25,
+                       
+                        shadow=ft.BoxShadow(
+                            blur_radius=15,
+                            spread_radius=1,
+                            color="#26000000",
+                            offset=ft.Offset(4, 0)
+                        ),
+                       
+                        alignment=ft.alignment.center,
+                        content=self.create_menu_compact()
+                    ),
+
+
+                    # 2. BÀN CỜ + ẢNH
+                    ft.Container(
+                        width=BOARD_SIZE,
+                        height=TOTAL_HEIGHT,
+                        content=ft.Column(
+                            spacing=0,
+                            alignment=ft.MainAxisAlignment.START,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            controls=[
+                                # Ảnh
+                                ft.Container(
+                                    height=TOP_OFFSET,
+                                    width=BOARD_SIZE,
+                                    alignment=ft.alignment.bottom_center,
+                                    padding=ft.padding.only(bottom=10),
+                                    content=ft.Image(
+                                        src="anh/binhthuong.png",
+                                        fit=ft.ImageFit.CONTAIN,
+                                        error_content=ft.Text("Chưa có ảnh", color="red")
+                                    )
+                                ),
+                                # Bàn cờ
+                                self.create_board_square()
+                            ]
+                        )
+                    )
+                ]
+            )
+        )
+
+
+    # --- MENU ĐIỀU KHIỂN ---
+    def create_menu_compact(self):
+        self.cb_pvm = ft.Checkbox(
+            label="Người vs Máy",
+            value=True,
+            fill_color="black",
+            check_color="white",
+            label_style=ft.TextStyle(color=TEXT_COLOR, size=16),
+            on_change=self.on_mode_checkbox_change
+        )
+
+
+        self.cb_mvm = ft.Checkbox(
+            label="Máy vs Máy",
+            value=False,
+            fill_color="black",
+            check_color="white",
+            label_style=ft.TextStyle(color=TEXT_COLOR, size=16),
+            on_change=self.on_mode_checkbox_change
+        )
+
+
+        self.slider_level = ft.Slider(
+            min=1, max=3, divisions=2, value=1,
+            label="{value}",
+            active_color="black",
+            thumb_color="black",
+            on_change=self.on_level_change
+        )
+
+
+        level_label = self.get_level_text(self.level)
+        self.level_text = ft.Text(level_label, color="black", size=20)
+
+
+        return ft.Column(
+            controls=[
+                ft.Text("GAME CARO", size=45, text_align="center", color=TEXT_COLOR),
+                ft.Divider(height=30, color="transparent"),
+               
+                ft.Text("Chế độ:", color=TEXT_COLOR, size=18),
+               
+                ft.Row(
+                    width=320,
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    controls=[self.cb_pvm, self.cb_mvm]
+                ),
+
+
+                ft.Divider(height=20, color="transparent"),
+               
+                ft.Row(
+                    width=320,
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    controls=[
+                        ft.Text("Độ khó:", color=TEXT_COLOR, size=18),
+                        self.level_text
+                    ]
+                ),
+               
+                self.slider_level,
+               
+                ft.Divider(height=40, color="transparent"),
+               
+                self.create_btn("BẮT ĐẦU", self.on_start_click),
+                ft.Container(height=15),
+                self.create_btn("QUAY LẠI", self.on_undo_click),
+                ft.Container(height=15),
+                self.create_btn("MÀN MỚI", self.reset_game_ui),
+            ],
+            horizontal_alignment="center",
+            alignment=ft.MainAxisAlignment.CENTER
+        )
+
+
+    def get_level_text(self, level):
+        if level == 1: return "Dễ"
+        if level == 2: return "Vừa"
+        return "Khó"
+
+
+    def on_mode_checkbox_change(self, e):
+        if e.control == self.cb_pvm and self.cb_pvm.value == True:
+            self.cb_mvm.value = False
+            self.game_mode = "PvM"
+        elif e.control == self.cb_mvm and self.cb_mvm.value == True:
+            self.cb_pvm.value = False
+            self.game_mode = "MvM"
+        elif self.cb_pvm.value == False and self.cb_mvm.value == False:
+            e.control.value = True
+        self.cb_pvm.update()
+        self.cb_mvm.update()
+
+
+    def create_btn(self, text, func):
+        return ft.ElevatedButton(
+            text=text,
+            height=55,
+            width=320,
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=10),
+                elevation=0,
+                text_style=ft.TextStyle(size=18, weight="bold"),
+               
+                bgcolor={
+                    ft.ControlState.HOVERED: "black",
+                    ft.ControlState.PRESSED: "black",
+                    ft.ControlState.DEFAULT: "white"
+                },
+               
+                color={
+                    ft.ControlState.HOVERED: "white",
+                    ft.ControlState.PRESSED: "white",
+                    ft.ControlState.DEFAULT: "black"
+                },
+               
+                overlay_color="#333333"
+            ),
+            on_click=func
+        )
+
+
+    # --- BÀN CỜ ---
+    def create_board_square(self):
+        BOARD_PADDING = 20
+       
+        macro_rows = []
+        for r_block in range(BLOCK_COUNT):
+            row_blocks = []
+            for c_block in range(BLOCK_COUNT):
+                micro_rows = []
+                for r_sub in range(SUB_CELL_COUNT):
+                    micro_cells = []
+                    for c_sub in range(SUB_CELL_COUNT):
+                        real_r = r_block * SUB_CELL_COUNT + r_sub
+                        real_c = c_block * SUB_CELL_COUNT + c_sub
+
+
+                        cell_text = ft.Text(
+                            "",
+                            size=20,
+                            text_align=ft.TextAlign.CENTER,
+                            no_wrap=True
+                        )
+                        self.ui_cells[(real_r, real_c)] = cell_text
+
+
+                        cell = ft.Container(
+                            expand=1,
+                            bgcolor="#00000000",
+                            alignment=ft.alignment.center,
+                            padding=ft.padding.only(bottom=5),
+                            content=cell_text,
+                            data={"r": real_r, "c": real_c},
+                            on_click=self.on_cell_click,
+                            border=ft.border.all(1.0, BOARD_LINE_COLOR),
+                            border_radius=0
+                        )
+                        micro_cells.append(cell)
+                    micro_rows.append(ft.Row(micro_cells, spacing=0, expand=1))
+
+
+                block = ft.Container(
+                    expand=1,
+                    content=ft.Column(micro_rows, spacing=0, expand=True),
+                    border=None
+                )
+                row_blocks.append(block)
+            macro_rows.append(ft.Row(row_blocks, spacing=0, expand=1))
+
+
+        return ft.Container(
+            width=BOARD_SIZE - (BOARD_PADDING * 2),
+            height=BOARD_SIZE - (BOARD_PADDING * 2),
+            content=ft.Column(macro_rows, spacing=0, expand=True),
+            bgcolor=BOARD_BG_COLOR,
+            border=ft.border.all(2, BOARD_LINE_COLOR),
+            border_radius=0,
+            shadow=None
+        )
+
+
+    # --- LOGIC ---
+    def on_level_change(self, e):
+        self.level = int(e.control.value)
+        self.level_text.value = self.get_level_text(self.level)
+        self.level_text.update()
+
+
+    async def on_start_click(self, e):
+        if self.is_playing: return
+       
+        # Đếm ngược
+        cnt_text = ft.Text("3", size=100, color="black", font_family="FredokaOne", weight="bold")
+        overlay = ft.Container(
+            content=cnt_text,
+            alignment=ft.alignment.center,
+            bgcolor="#ccffffff",
+            expand=True,
+            on_click=lambda _: None
+        )
+       
+        self.page.overlay.append(overlay)
+        self.page.update()
+       
+        for i in range(3, 0, -1):
+            cnt_text.value = str(i)
+            cnt_text.update()
+            await asyncio.sleep(1)
+           
+        cnt_text.value = "BẮT ĐẦU!"
+        cnt_text.size = 60
+        cnt_text.update()
+        await asyncio.sleep(0.8)
+       
+        self.page.overlay.remove(overlay)
+        self.page.update()
+       
+        self.is_playing = True
+        self.clear_visuals()
+        if hasattr(self.board_logic, 'reset_board'): self.board_logic.reset_board()
+        self.history = []
+       
+        if self.game_mode == "MvM":
+            self.page.run_task(self.run_mvm)
+
+
+    def on_cell_click(self, e):
+        if not self.is_playing or self.game_mode == "MvM": return
+        r, c = e.control.data["r"], e.control.data["c"]
+        if self.board_logic.board[r][c] != 0: return
+       
+        self.move(r, c, 1)
+        # Kiểm tra thắng ngay sau nước đi của bạn
+        if self.check_win_gui(r, c, 1): return
+       
+        self.page.run_task(self.ai_move)
+
+
+    async def ai_move(self):
+        await asyncio.sleep(0.3)
+        try: m = self.ai.get_move(self.board_logic.board, level=self.level)
+        except TypeError: m = self.ai.get_move(self.board_logic.board)
+        if m:
+            self.move(m[0], m[1], -1)
+            self.check_win_gui(m[0], m[1], -1)
+
+
+    async def run_mvm(self):
+        while self.is_playing:
+            await asyncio.sleep(0.4)
+            try: m1 = self.ai.get_move(self.board_logic.board, level=self.level)
+            except TypeError: m1 = self.ai.get_move(self.board_logic.board)
+            if m1 and self.board_logic.board[m1[0]][m1[1]] == 0:
+                self.move(m1[0], m1[1], 1)
+                if self.check_win_gui(m1[0], m1[1], 1): break
+            await asyncio.sleep(0.4)
+            try: m2 = self.ai.get_move(self.board_logic.board, level=self.level)
+            except TypeError: m2 = self.ai.get_move(self.board_logic.board)
+            if m2 and self.board_logic.board[m2[0]][m2[1]] == 0:
+                self.move(m2[0], m2[1], -1)
+                if self.check_win_gui(m2[0], m2[1], -1): break
+
+
+    def move(self, r, c, p):
+        self.board_logic.board[r][c] = p
+        self.history.append((r, c))
+        if (r, c) in self.ui_cells:
+            self.ui_cells[(r, c)].value = "X" if p == 1 else "O"
+            self.ui_cells[(r, c)].color = X_COLOR if p == 1 else O_COLOR
+            self.ui_cells[(r, c)].update()
+
+
+    def check_5_in_a_row(self, r, c, player):
+        board = self.board_logic.board
+        rows = len(board)
+        cols = len(board[0])
+        directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
         for dr, dc in directions:
             count = 1
-            for k in range(1, 5):
-                r, c = row + dr*k, col + dc*k
-                if 0 <= r < self.size and 0 <= c < self.size and self.board[r][c] == player: count += 1
+            for i in range(1, 5):
+                nr, nc = r + dr * i, c + dc * i
+                if 0 <= nr < rows and 0 <= nc < cols and board[nr][nc] == player: count += 1
                 else: break
-            for k in range(1, 5):
-                r, c = row - dr*k, col - dc*k
-                if 0 <= r < self.size and 0 <= c < self.size and self.board[r][c] == player: count += 1
+            for i in range(1, 5):
+                nr, nc = r - dr * i, c - dc * i
+                if 0 <= nr < rows and 0 <= nc < cols and board[nr][nc] == player: count += 1
                 else: break
             if count >= 5: return True
         return False
 
-class InternalAI:
-    def __init__(self, depth=3):
-        self.depth = depth
 
-    def get_move(self, board_gui):
-        size = len(board_gui)
-
-        #Convert board GUI -> board AI (0,1,2)
-        # board_gui: 1 = người (X), -1 = máy (O), 0 = trống
-        # board_ai: X=1 (người), O=2 (máy), EMPTY=0
-        board_ai = [[EMPTY for _ in range(size)] for _ in range(size)]
-        for r in range(size):
-            for c in range(size):
-                if board_gui[r][c] == 1:        # người chơi
-                    board_ai[r][c] = X          # 1
-                elif board_gui[r][c] == -1:     # AI/máy
-                    board_ai[r][c] = O          # 2
-                else:
-                    board_ai[r][c] = EMPTY      # 0
-
-        print(f"[AI] board_gui: {board_gui}")
-        print(f"[AI] board_ai: {board_ai}")
-        
-        #Gọi thuật toán minimax + alpha–beta
-        try:
-            move = find_best_move(board_ai, O, depth=self.depth)
-            print(f"[AI] find_best_move trả về: {move}")
-            return move
-        except Exception as e:
-            print(f"[AI] Error: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
-# =================================================================================
-# PHẦN 2: GIAO DIỆN CARO GUI
-# =================================================================================
-class CaroGUI:
-    def __init__(self, board_size=15, board=None, ai=None):
-        # --- 1. CẤU HÌNH MÀU SẮC ---
-        self.COLOR_APP_BG   = "#343434"
-        self.COLOR_FRAME_BG = "#515151"
-        self.COLOR_BOARD    = "#908e79"
-        
-        self.COLOR_TXT      = "#fcfcfc" # Màu chữ chính
-        self.COLOR_X        = "#343434" 
-        self.COLOR_O        = "white"   
-        self.COLOR_LINE     = "#5e5c4f"  
-        self.COLOR_ACCENT   = "#941e0e" 
-        self.COLOR_HIGHLIGHT = "#fcfcfc" # Màu viền khi active
-
-        # --- 2. CẤU HÌNH KÍCH THƯỚC ---
-        self.outer_cols = 14    
-        self.outer_rows = 12    
-        self.outer_cell = 60    
-        self.inner_cell = 20    
-        self.size = 15          
-        self.inner_px = self.size * self.inner_cell 
-
-        self.FONT_MAIN = ("Segoe UI", 9, "bold") 
-        self.FONT_BTN  = ("Segoe UI", 8, "bold") 
-        self.FONT_TIMER = ("Consolas", 16, "bold")
-        self.FONT_COUNTDOWN = ("Segoe UI", 40, "bold") # Font số đếm ngược
-
-        # --- TRẠNG THÁI ---
-        self.current_player = 1
-        self.thinking = False
-        self.game_started = False
-        self.in_countdown = False # Cờ trạng thái đếm ngược
-        self.history = []
-        
-        # --- TIMER ---
-        self.time_limit = 5 * 60 
-        self.current_time_left = self.time_limit
-        self.timer_job = None
-        
-        self.images_cache = [] 
-        self.current_mode = "PvM" 
-        self.current_level = 2
-
-        self.board_logic = board if board else InternalBoard(self.size)
-        self.ai = ai if ai else InternalAI()
-
-        # --- CỬA SỔ ---
-        self.root = tk.Tk()
-        self.root.title("Cờ Caro")
-        
-        win_w = self.outer_cols * self.outer_cell 
-        win_h = self.outer_rows * self.outer_cell 
-        self.root.geometry(f"{win_w}x{win_h}")
-        self.root.resizable(False, False)
-        self.root.configure(bg=self.COLOR_APP_BG)
-
-        # --- GIAO DIỆN ---
-        self.create_background_layers() 
-        self.create_board()             
-        self.create_right_panel()       
-        self.create_player_status_panel()
-
-    # --------------------------------------------------------
-    # HÀM HỖ TRỢ
-    # --------------------------------------------------------
-    def get_circular_avatar(self, image_path, size):
-        if not HAS_PIL: return None
-        try:
-            img = Image.open(image_path).convert("RGBA")
-            img = ImageOps.fit(img, (size, size), centering=(0.5, 0.5))
-            mask = Image.new('L', (size, size), 0)
-            draw = ImageDraw.Draw(mask)
-            draw.ellipse((0, 0, size, size), fill=255)
-            img.putalpha(mask)
-            return ImageTk.PhotoImage(img)
-        except Exception:
-            return None
-
-    def draw_rounded_rect(self, canvas, x1, y1, x2, y2, radius=25, **kwargs):
-        points = [x1+radius, y1, x1+radius, y1, x2-radius, y1, x2-radius, y1, x2, y1, x2, y1+radius, x2, y1+radius, x2, y2-radius, x2, y2-radius, x2, y2, x2-radius, y2, x2-radius, y2, x1+radius, y2, x1+radius, y2, x1, y2, x1, y2-radius, x1, y2-radius, x1, y1+radius, x1, y1+radius, x1, y1]
-        return canvas.create_polygon(points, **kwargs, smooth=True)
-
-    # 1. TẠO LỚP NỀN & KHUNG
-    def create_background_layers(self):
-        self.bg_canvas = tk.Canvas(self.root, width=self.outer_cols*self.outer_cell, 
-                                   height=self.outer_rows*self.outer_cell, 
-                                   bg=self.COLOR_APP_BG, highlightthickness=0)
-        self.bg_canvas.place(x=0, y=0)
-
-        self.draw_rounded_rect(self.bg_canvas, 
-                               1 * self.outer_cell, 1 * self.outer_cell, 
-                               13 * self.outer_cell, 11 * self.outer_cell, 
-                               radius=30, fill=self.COLOR_FRAME_BG)
-        
-        self.draw_rounded_rect(self.bg_canvas, 
-                               8 * self.outer_cell + 10, 
-                               2 * self.outer_cell + 10, 
-                               12 * self.outer_cell - 10, 
-                               6 * self.outer_cell - 10, 
-                               radius=20, fill="", outline="#dcded0", width=2)
-
-    # 2. TẠO BÀN CỜ
-    def create_board(self):
-        start_x = 2 * self.outer_cell 
-        start_y = 2 * self.outer_cell 
-        
-        self.center_frame = tk.Frame(self.root, width=self.inner_px, height=self.inner_px, bg=self.COLOR_BOARD)
-        self.center_frame.place(x=start_x, y=start_y)
-        
-        self.canvas = tk.Canvas(self.center_frame, width=self.inner_px, height=self.inner_px, 
-                                bg=self.COLOR_BOARD, highlightthickness=0)
-        self.canvas.pack()
-        self.draw_grid_lines() 
-        self.canvas.bind("<Button-1>", self.on_click)
-
-    # 3. TRẠNG THÁI NGƯỜI CHƠI
-    def create_player_status_panel(self):
-        base_y = 9 * self.outer_cell
-        center_y = base_y + (self.outer_cell // 2)
-
-        # Avatar 1
-        pos_x_p1 = 3.5 * self.outer_cell 
-        self.cv_p1 = tk.Canvas(self.root, width=50, height=50, bg=self.COLOR_FRAME_BG, highlightthickness=0)
-        self.cv_p1.place(x=pos_x_p1 - 25, y=center_y - 25)
-        
-        img_p1 = self.get_circular_avatar(r"c:\anh\nguoichoi.png", 50)
-        if img_p1:
-            self.images_cache.append(img_p1)
-            self.cv_p1.create_image(25, 25, image=img_p1)
-        else:
-            self.cv_p1.create_oval(2,2,48,48, fill="gray")
-            self.cv_p1.create_text(25,25, text="USER", fill="white")
-
-        # Đồng hồ
-        pos_x_timer = 4.5 * self.outer_cell
-        self.lbl_timer = tk.Label(self.root, text="05:00", font=self.FONT_TIMER, 
-                                  bg=self.COLOR_FRAME_BG, fg="#fcfcfc") # [MÀU MỚI]
-        self.lbl_timer.place(x=pos_x_timer, y=center_y, anchor="center")
-        
-        lbl_note = tk.Label(self.root, text="Time Limit", font=("Segoe UI", 7), 
-                            bg=self.COLOR_FRAME_BG, fg="#aaa")
-        lbl_note.place(x=pos_x_timer, y=center_y + 20, anchor="center")
-
-        # Avatar 2
-        pos_x_bot = 5.5 * self.outer_cell
-        self.cv_bot = tk.Canvas(self.root, width=50, height=50, bg=self.COLOR_FRAME_BG, highlightthickness=0)
-        self.cv_bot.place(x=pos_x_bot - 25, y=center_y - 25)
-
-        img_bot = self.get_circular_avatar(r"c:\anh\may.png", 50)
-        if img_bot:
-            self.images_cache.append(img_bot)
-            self.cv_bot.create_image(25, 25, image=img_bot)
-        else:
-            self.cv_bot.create_oval(2,2,48,48, fill="gray")
-            self.cv_bot.create_text(25,25, text="BOT", fill="white")
-
-    # 4. PANEL PHẢI
-    def create_right_panel(self):
-        center_x = 10 * self.outer_cell
-        center_y = 3 * self.outer_cell
-        
-        outer_radius = 90  
-        gap = 20          
-        inner_radius = outer_radius - gap 
-        border_color = "#dcded0"
-        cv_size = (outer_radius * 2) + 4
-        
-        logo_cv = tk.Canvas(self.root, width=cv_size, height=cv_size, 
-                            bg=self.COLOR_FRAME_BG, highlightthickness=0)
-        logo_cv.place(x=center_x - cv_size/2, y=center_y - cv_size/2)
-        cc = cv_size / 2 
-
-        logo_cv.create_oval(cc - outer_radius, cc - outer_radius, cc + outer_radius, cc + outer_radius,
-                            outline=border_color, width=2, fill="")
-        logo_cv.create_oval(cc - inner_radius, cc - inner_radius, cc + inner_radius, cc + inner_radius,
-                            outline=border_color, width=2, fill="")
-
-        img_size = inner_radius * 2
-        photo = self.get_circular_avatar(r"c:\anh\logo.png", img_size)
-        if photo:
-            self.images_cache.append(photo)
-            logo_cv.create_image(cc, cc, image=photo)
-        else:
-            logo_cv.create_oval(cc - inner_radius + 5, cc - inner_radius + 5,
-                                cc + inner_radius - 5, cc + inner_radius - 5, fill="#333")
-            logo_cv.create_text(cc, cc, text="LOGO", fill="white", font=("Arial", 10, "bold"))
-
-        row_btn = 7 * self.outer_cell
-        # [STYLE NÚT] Không viền
-        self.draw_circle_btn("New\nGame", 8.5 * self.outer_cell, row_btn, self.reset_game)
-        self.draw_circle_btn("Start", 10.5 * self.outer_cell, row_btn, self.start_countdown_sequence)
-
-        row_mode = 8.5 * self.outer_cell
-        self.btn_pvm = self.draw_mode_btn("PvM", "PvM", 8.5 * self.outer_cell, row_mode)
-        self.btn_mvm = self.draw_mode_btn("MvM", "MvM", 10.5 * self.outer_cell, row_mode)
-        self.update_mode_ui()
-
-        row_slider = 9.8 * self.outer_cell
-        slider_frame = tk.Frame(self.root, bg=self.COLOR_FRAME_BG)
-        slider_frame.place(x=8.5 * self.outer_cell, y=row_slider, width=160, height=60)
-        
-        self.scale_level = tk.Scale(slider_frame, from_=1, to=3, orient=tk.HORIZONTAL, 
-                                    showvalue=0, width=10, length=140,
-                                    bg=self.COLOR_FRAME_BG, fg="white",
-                                    troughcolor="#333", highlightthickness=0, 
-                                    command=self.update_level_label)
-        self.scale_level.set(2)
-        self.scale_level.pack()
-        self.lbl_level = tk.Label(slider_frame, text="độ khó: vừa", font=("Segoe UI", 8), bg=self.COLOR_FRAME_BG, fg="#ccc")
-        self.lbl_level.pack()
-
-    # --- HÀM VẼ UI KHÁC ---
-    def draw_circle_btn(self, text, x, y, command):
-        size = 50 
-        cv = tk.Canvas(self.root, width=size, height=size, bg=self.COLOR_FRAME_BG, highlightthickness=0)
-        cv.place(x=x, y=y)
-        
-        # [THAY ĐỔI] outline="" (không viền)
-        oval = cv.create_oval(2, 2, size-2, size-2, fill=self.COLOR_APP_BG, outline="", width=0)
-        txt = cv.create_text(size//2, size//2, text=text, font=self.FONT_BTN, fill="white", justify="center")
-        
-        cv.bind("<Button-1>", lambda e: command())
-        cv.tag_bind(oval, "<Button-1>", lambda e: command())
-        cv.tag_bind(txt, "<Button-1>", lambda e: command())
-
-    def draw_mode_btn(self, text, mode, x, y):
-        size = 50
-        cv = tk.Canvas(self.root, width=size, height=size, bg=self.COLOR_FRAME_BG, highlightthickness=0)
-        cv.place(x=x, y=y)
-        
-        # [THAY ĐỔI] outline="" ban đầu
-        oval = cv.create_oval(2, 2, size-2, size-2, fill=self.COLOR_APP_BG, outline="", width=0)
-        txt = cv.create_text(size//2, size//2, text=text, font=self.FONT_BTN, fill="white", justify="center")
-        
-        cv.bind("<Button-1>", lambda e: self.set_mode(mode))
-        cv.tag_bind(oval, "<Button-1>", lambda e: self.set_mode(mode))
-        cv.tag_bind(txt, "<Button-1>", lambda e: self.set_mode(mode))
-        return {"cv": cv, "oval": oval, "mode": mode}
-
-    def update_level_label(self, val):
-        val = int(val)
-        self.current_level = val
-        texts = {1: "dễ", 2: "vừa", 3: "khó"}
-        self.lbl_level.config(text=f"độ khó: {texts[val]}")
-
-    def set_mode(self, mode):
-        if self.game_started: return # Không đổi mode khi đang chơi
-        self.current_mode = mode
-        self.update_mode_ui()
-
-    def update_mode_ui(self):
-        # [LOGIC MỚI] Nếu chọn -> Viền #fcfcfc, width=2. Không chọn -> Không viền.
-        
-        # Xử lý nút PvM
-        if self.current_mode == "PvM":
-            self.btn_pvm["cv"].itemconfig(self.btn_pvm["oval"], outline=self.COLOR_HIGHLIGHT, width=2)
-        else:
-            self.btn_pvm["cv"].itemconfig(self.btn_pvm["oval"], outline="", width=0)
-
-        # Xử lý nút MvM
-        if self.current_mode == "MvM":
-            self.btn_mvm["cv"].itemconfig(self.btn_mvm["oval"], outline=self.COLOR_HIGHLIGHT, width=2)
-        else:
-            self.btn_mvm["cv"].itemconfig(self.btn_mvm["oval"], outline="", width=0)
-
-    def draw_grid_lines(self):
-        self.canvas.delete("grid_line")
-        for i in range(self.size + 1):
-            pos = i * self.inner_cell
-            self.canvas.create_line(pos, 0, pos, self.inner_px, fill=self.COLOR_LINE, tag="grid_line")
-            self.canvas.create_line(0, pos, self.inner_px, pos, fill=self.COLOR_LINE, tag="grid_line")
-
-    # --- LOGIC ĐẾM NGƯỢC (3, 2, 1, START) ---
-    def start_countdown_sequence(self):
-        if self.game_started or self.in_countdown: return
-        self.reset_game()
-        self.in_countdown = True
-        self.run_countdown_step(3)
-
-    def run_countdown_step(self, count):
-        self.canvas.delete("countdown_text") # Xóa số cũ
-        
-        if count > 0:
-            # Vẽ số to giữa bàn cờ
-            self.canvas.create_text(self.inner_px//2, self.inner_px//2, 
-                                    text=str(count), font=self.FONT_COUNTDOWN, 
-                                    fill=self.COLOR_HIGHLIGHT, tag="countdown_text")
-            self.root.after(1000, lambda: self.run_countdown_step(count - 1))
-        else:
-            # Vẽ chữ Bắt đầu
-            self.canvas.create_text(self.inner_px//2, self.inner_px//2, 
-                                    text="Bắt đầu", font=("Segoe UI", 30, "bold"), 
-                                    fill=self.COLOR_HIGHLIGHT, tag="countdown_text")
-            self.root.after(1000, self.real_game_start)
-
-    def real_game_start(self):
-        self.canvas.delete("countdown_text")
-        self.in_countdown = False
-        self.game_started = True
-        self.current_time_left = self.time_limit
-        self.start_timer()
-        if self.current_mode == "MvM": self.run_auto_play()
-
-    # --- LOGIC ĐỒNG HỒ ---
-    def start_timer(self):
-        if self.timer_job: self.root.after_cancel(self.timer_job)
-        self.countdown_timer()
-
-    def stop_timer(self):
-        if self.timer_job:
-            self.root.after_cancel(self.timer_job)
-            self.timer_job = None
-
-    def countdown_timer(self):
-        if not self.game_started: return
-        
-        mins, secs = divmod(self.current_time_left, 60)
-        self.lbl_timer.config(text=f"{mins:02}:{secs:02}")
-
-        if self.current_time_left > 0:
-            self.current_time_left -= 1
-            self.timer_job = self.root.after(1000, self.countdown_timer)
-        else:
-            self.lbl_timer.config(text="00:00", fg="red")
-            self.game_started = False
-            self.stop_timer()
-            print("Hết giờ!")
-
-    # --- LOGIC GAME & TƯƠNG TÁC ---
-    def run_auto_play(self):
-        if not self.game_started: return
-        self.thinking = True
-        Thread(target=self.run_ai_thread, daemon=True).start()
-
-    def on_click(self, event):
-        # Chặn click khi đang đếm ngược hoặc AI đang nghĩ
-        if self.in_countdown or not self.game_started or self.thinking: 
-            print(f"Chặn click: in_countdown={self.in_countdown}, game_started={self.game_started}, thinking={self.thinking}")
-            return
-        if self.current_mode == "MvM": return 
-        
-        c = event.x // self.inner_cell
-        r = event.y // self.inner_cell
-        if not (0 <= r < self.size and 0 <= c < self.size): return
-        if self.board_logic.board[r][c] != 0: return
-
-        print(f"Người đánh: ({r}, {c}), current_player={self.current_player}")
-        self.execute_move(r, c, self.current_player)
-        if self.board_logic.check_win(r, c, self.current_player):
-            print("Người thắng!")
-            self.game_started = False
-            self.stop_timer()
-            return
-
-        self.current_player *= -1
-        print(f"Chuyển sang AI, current_player={self.current_player}")
-        if self.current_mode == "PvM" and self.current_player == -1:
-            print("Gọi AI thread...")
-            Thread(target=self.run_ai_thread, daemon=True).start()
-
-    def execute_move(self, r, c, player):
-        self.board_logic.board[r][c] = player
-        self.draw_piece(r, c, player)
-        self.history.append((r, c))
-
-    def draw_piece(self, r, c, player):
-        x = c * self.inner_cell; y = r * self.inner_cell; pad = 3
-        if player == 1:
-            self.canvas.create_line(x+pad, y+pad, x+20-pad, y+20-pad, width=2, fill=self.COLOR_X, tag="piece")
-            self.canvas.create_line(x+20-pad, y+pad, x+pad, y+20-pad, width=2, fill=self.COLOR_X, tag="piece")
-        else:
-            self.canvas.create_oval(x+pad, y+pad, x+20-pad, y+20-pad, width=2, outline=self.COLOR_O, tag="piece")
-
-    def reset_game(self):
-        self.stop_timer()
-        self.lbl_timer.config(text="05:00", fg=self.COLOR_TXT)
-        self.canvas.delete("all")
-        self.draw_grid_lines()
-        
-        if isinstance(self.board_logic, InternalBoard): self.board_logic = InternalBoard(self.size)
-        else: self.board_logic.board = [[0]*self.size for _ in range(self.size)]
-        
-        self.history.clear()
-        self.current_player = 1
-        self.game_started = False
-        self.thinking = False
-        self.in_countdown = False
-
-    def run_ai_thread(self):
-        print(f"AI thread bắt đầu, current_player={self.current_player}")
-        self.thinking = True
-        move = self.ai.get_move(self.board_logic.board)
-        print(f"AI trả về move: {move}")
-        self.root.after(500, lambda: self.after_ai_move(move))
-
-    def after_ai_move(self, move):
-        print(f"after_ai_move: move={move}, game_started={self.game_started}, current_player={self.current_player}")
-        if not self.game_started: 
-            print("Game chưa start")
-            return
-        if move:
-            r, c = move
-            print(f"Kiểm tra ô ({r}, {c}): board[{r}][{c}] = {self.board_logic.board[r][c]}")
-            if self.board_logic.board[r][c] == 0:
-                print(f"AI đánh: ({r}, {c})")
-                self.execute_move(r, c, self.current_player)
-                if self.board_logic.check_win(r, c, self.current_player):
-                    print("Máy thắng")
-                    self.game_started = False
-                    self.thinking = False
-                    self.stop_timer()
-                    return
+    def check_win_gui(self, r, c, p):
+        if self.check_5_in_a_row(r, c, p):
+            winner_msg = ""
+            if self.game_mode == "PvM":
+                winner_msg = "BẠN THẮNG!" if p == 1 else "MÁY THẮNG!"
             else:
-                print(f"Ô ({r}, {c}) không trống, bỏ qua")
+                winner_msg = "MÁY X THẮNG!" if p == 1 else "MÁY O THẮNG!"
+
+
+            self.is_playing = False
+           
+            # --- SHOW OVERLAY THÔNG BÁO THẮNG (TO NHƯ 3-2-1) ---
+            self.show_win_overlay(winner_msg)
+            return True
+        return False
+
+
+    def show_win_overlay(self, text):
+        # Tạo nội dung thông báo
+        content = ft.Column(
+            controls=[
+                ft.Text(text, size=80, color="black", font_family="FredokaOne", weight="bold", text_align="center"),
+                ft.Container(height=20),
+                self.create_btn("ĐÓNG", self.close_win_overlay)
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER
+        )
+
+
+        self.win_overlay_container = ft.Container(
+            content=content,
+            alignment=ft.alignment.center,
+            bgcolor="#ccffffff", # Mờ trắng
+            expand=True,
+            on_click=lambda _: None # Chặn click
+        )
+       
+        self.page.overlay.append(self.win_overlay_container)
+        self.page.update()
+
+
+    def close_win_overlay(self, e):
+        if self.win_overlay_container in self.page.overlay:
+            self.page.overlay.remove(self.win_overlay_container)
+            self.page.update()
+
+
+    def on_undo_click(self, e):
+        if not self.history: return
+        steps_to_undo = 0
+        if self.game_mode == "PvM":
+             steps_to_undo = 2 if len(self.history) >= 2 else len(self.history)
         else:
-            print("Move là None")
-        self.thinking = False
-        self.current_player *= -1
-        print(f"Chuyển sang người, current_player={self.current_player}")
-        if self.current_mode == "MvM" and self.game_started: self.root.after(500, self.run_auto_play)
+             steps_to_undo = 1
+        for _ in range(steps_to_undo):
+            if self.history:
+                r, c = self.history.pop()
+                self.board_logic.board[r][c] = 0
+                if (r, c) in self.ui_cells:
+                    self.ui_cells[(r, c)].value = ""
+                    self.ui_cells[(r, c)].update()
 
-    def run(self):
-        self.root.mainloop()
 
-if __name__ == "__main__":
-    app = CaroGUI()
-    app.run()
+    def reset_game_ui(self, e):
+        self.is_playing = False
+        self.history = []
+        if hasattr(self.board_logic, 'reset_board'):
+             self.board_logic.reset_board()
+        else:
+             self.board_logic.board = [[0] * 15 for _ in range(15)]
+        self.clear_visuals()
+        # Đóng overlay nếu còn
+        if self.win_overlay_container in self.page.overlay:
+            self.page.overlay.remove(self.win_overlay_container)
+            self.page.update()
+
+
+    def clear_visuals(self):
+        for cell in self.ui_cells.values():
+            cell.value = ""
+            cell.update()
+
