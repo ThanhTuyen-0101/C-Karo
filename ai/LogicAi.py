@@ -1,11 +1,10 @@
-# ================== HẰNG SỐ VÀ HƯỚNG ĐI ==================
+﻿# ================== Háº°NG Sá» VÃ€ HÆ¯á»šNG ÄI ==================
 
-SIZE  = 15      # Kích thước bàn cờ 15x15
-EMPTY = 0       # Ô trống
-X     = 1       # Quân X (người)
-O     = 2       # Quân O (AI)
-
-# 4 hướng chính: ngang, dọc, chéo xuống phải, chéo xuống trái
+SIZE  = 15      # KÃ­ch thÆ°á»›c bÃ n cá» 15x15
+EMPTY = 0       # Ã” trá»‘ng
+X     = 1       # Quân X (ngu?i)
+O     = -1      # Quân O (AI)
+# 4 hÆ°á»›ng chÃ­nh: ngang, dá»c, chÃ©o xuá»‘ng pháº£i, chÃ©o xuá»‘ng trÃ¡i
 DIRECTIONS = [
     (0, 1),
     (1, 0),
@@ -14,36 +13,36 @@ DIRECTIONS = [
 ]
 
 
-# ================== HÀM TIỆN ÍCH CƠ BẢN ==================
+# ================== HÃ€M TIá»†N ÃCH CÆ  Báº¢N ==================
 
 def in_board(r, c):
-    """Kiểm tra (r, c) có nằm trong bàn cờ hay không."""
+    """Kiá»ƒm tra (r, c) cÃ³ náº±m trong bÃ n cá» hay khÃ´ng."""
     return 0 <= r < SIZE and 0 <= c < SIZE
 
 
 def get_opponent(player):
-    """Trả về quân đối thủ của player."""
+    """Tráº£ vá» quÃ¢n Ä‘á»‘i thá»§ cá»§a player."""
     return X if player == O else O
 
 
-# ================== HÀM SINH NƯỚC ĐI HỢP LỆ (ƯU TIÊN GẦN NGƯỜI) ==================
+# ================== HÃ€M SINH NÆ¯á»šC ÄI Há»¢P Lá»† (Æ¯U TIÃŠN Gáº¦N NGÆ¯á»œI) ==================
 
 def generate_legal_moves(board, radius=4):
     """
-    Sinh danh sách các nước đi hợp lệ (r, c).
+    Sinh danh sÃ¡ch cÃ¡c nÆ°á»›c Ä‘i há»£p lá»‡ (r, c).
 
-    - Chỉ sinh các ô trống nằm trong vùng bao quanh tất cả quân đã đánh,
-      nới thêm 'radius' ô.
-    - Bàn trống -> mọi ô trống đều hợp lệ.
-    - Sắp xếp moves: ưu tiên nước đi gần QUÂN NGƯỜI chơi (X) trước,
-      để AI dễ chặn hơn.
+    - Chá»‰ sinh cÃ¡c Ã´ trá»‘ng náº±m trong vÃ¹ng bao quanh táº¥t cáº£ quÃ¢n Ä‘Ã£ Ä‘Ã¡nh,
+      ná»›i thÃªm 'radius' Ã´.
+    - BÃ n trá»‘ng -> má»i Ã´ trá»‘ng Ä‘á»u há»£p lá»‡.
+    - Sáº¯p xáº¿p moves: Æ°u tiÃªn nÆ°á»›c Ä‘i gáº§n QUÃ‚N NGÆ¯á»œI chÆ¡i (X) trÆ°á»›c,
+      Ä‘á»ƒ AI dá»… cháº·n hÆ¡n.
     """
     size = len(board)
     has_stone = False
     min_r, max_r = size, -1
     min_c, max_c = size, -1
 
-    # Tìm bounding box chứa tất cả quân
+    # TÃ¬m bounding box chá»©a táº¥t cáº£ quÃ¢n
     for r in range(size):
         for c in range(size):
             if board[r][c] != EMPTY:
@@ -55,7 +54,7 @@ def generate_legal_moves(board, radius=4):
 
     moves = []
 
-    # Bàn trống -> cho phép mọi ô trống
+    # BÃ n trá»‘ng -> cho phÃ©p má»i Ã´ trá»‘ng
     if not has_stone:
         for r in range(size):
             for c in range(size):
@@ -63,7 +62,7 @@ def generate_legal_moves(board, radius=4):
                     moves.append((r, c))
         return moves
 
-    # Mở rộng vùng quanh quân đã đánh
+    # Má»Ÿ rá»™ng vÃ¹ng quanh quÃ¢n Ä‘Ã£ Ä‘Ã¡nh
     min_r = max(0, min_r - radius)
     max_r = min(size - 1, max_r + radius)
     min_c = max(0, min_c - radius)
@@ -74,7 +73,7 @@ def generate_legal_moves(board, radius=4):
             if board[r][c] == EMPTY:
                 moves.append((r, c))
 
-    # --- ƯU TIÊN GẦN QUÂN NGƯỜI (X) ---
+    # --- Æ¯U TIÃŠN Gáº¦N QUÃ‚N NGÆ¯á»œI (X) ---
     opp_cells = [(r, c) for r in range(size) for c in range(size)
                  if board[r][c] == X]
 
@@ -84,20 +83,20 @@ def generate_legal_moves(board, radius=4):
             return min(abs(r - orr) + abs(c - occ) for orr, occ in opp_cells)
         moves.sort(key=dist_to_opp)
     else:
-        # nếu chưa có quân người -> ưu tiên gần trung tâm
+        # náº¿u chÆ°a cÃ³ quÃ¢n ngÆ°á»i -> Æ°u tiÃªn gáº§n trung tÃ¢m
         center = SIZE // 2
         moves.sort(key=lambda m: abs(m[0] - center) + abs(m[1] - center))
 
     return moves
 
 
-# ================== HÀM CHECK THẮNG (ĐÚNG 5 QUÂN) ==================
+# ================== HÃ€M CHECK THáº®NG (ÄÃšNG 5 QUÃ‚N) ==================
 
 def is_exact_five(board, r, c, dr, dc):
     """
-    Kiểm tra tại ô (r, c) theo hướng (dr, dc) có ĐÚNG 5 quân liên tiếp không.
-    - Không tính chuỗi dài hơn 5 (overline).
-    - (r, c) phải là ô ĐẦU chuỗi.
+    Kiá»ƒm tra táº¡i Ã´ (r, c) theo hÆ°á»›ng (dr, dc) cÃ³ ÄÃšNG 5 quÃ¢n liÃªn tiáº¿p khÃ´ng.
+    - KhÃ´ng tÃ­nh chuá»—i dÃ i hÆ¡n 5 (overline).
+    - (r, c) pháº£i lÃ  Ã´ Äáº¦U chuá»—i.
     """
     player = board[r][c]
     if player == EMPTY:
@@ -124,7 +123,7 @@ def is_exact_five(board, r, c, dr, dc):
 
 
 def check_winner(board):
-    """Trả về X hoặc O nếu có người thắng, None nếu chưa."""
+    """Tráº£ vá» X hoáº·c O náº¿u cÃ³ ngÆ°á»i tháº¯ng, None náº¿u chÆ°a."""
     for r in range(SIZE):
         for c in range(SIZE):
             if board[r][c] in (X, O):
@@ -134,10 +133,10 @@ def check_winner(board):
     return None
 
 
-# ================== HÀM ĐÁNH GIÁ (HEURISTIC) ==================
+# ================== HÃ€M ÄÃNH GIÃ (HEURISTIC) ==================
 
 def count_sequence(board, r, c, dr, dc, player):
-    """Đếm độ dài chuỗi liên tiếp bắt đầu tại (r,c) theo hướng (dr,dc)."""
+    """Äáº¿m Ä‘á»™ dÃ i chuá»—i liÃªn tiáº¿p báº¯t Ä‘áº§u táº¡i (r,c) theo hÆ°á»›ng (dr,dc)."""
     length = 0
     cr, cc = r, c
     while in_board(cr, cc) and board[cr][cc] == player:
@@ -149,12 +148,12 @@ def count_sequence(board, r, c, dr, dc, player):
 
 def evaluate(board, player):
     """
-    Đánh giá trạng thái bàn cờ cho player.
+    ÄÃ¡nh giÃ¡ tráº¡ng thÃ¡i bÃ n cá» cho player.
 
-    - Chuỗi 2: 10
-    - Chuỗi 3: 50
-    - Chuỗi 4: 200
-    - score = my_score - 3 * opp_score  (phòng thủ mạnh)
+    - Chuá»—i 2: 10
+    - Chuá»—i 3: 50
+    - Chuá»—i 4: 200
+    - score = my_score - 3 * opp_score  (phÃ²ng thá»§ máº¡nh)
     """
     opponent = get_opponent(player)
 
@@ -181,14 +180,14 @@ def evaluate(board, player):
     return my_score - 3 * opp_score
 
 
-# ================== HÀM TÌM NƯỚC CHẶN BẮT BUỘC ==================
+# ================== HÃ€M TÃŒM NÆ¯á»šC CHáº¶N Báº®T BUá»˜C ==================
 
 def find_block_move(board, player):
     """
-    Tìm nước đi CHẶN đối thủ.
-    Ưu tiên:
-    1) Chặn các ô mà đối thủ có thể tạo chuỗi >= 4.
-    2) Nếu không có, chặn các ô mà đối thủ tạo được chuỗi = 3.
+    TÃ¬m nÆ°á»›c Ä‘i CHáº¶N Ä‘á»‘i thá»§.
+    Æ¯u tiÃªn:
+    1) Cháº·n cÃ¡c Ã´ mÃ  Ä‘á»‘i thá»§ cÃ³ thá»ƒ táº¡o chuá»—i >= 4.
+    2) Náº¿u khÃ´ng cÃ³, cháº·n cÃ¡c Ã´ mÃ  Ä‘á»‘i thá»§ táº¡o Ä‘Æ°á»£c chuá»—i = 3.
     """
     opponent = get_opponent(player)
     size = len(board)
@@ -223,7 +222,7 @@ def find_block_move(board, player):
             board[r][c] = EMPTY
 
             if max_len >= 4:
-                return (r, c)      # chặn chuỗi 4+ -> ưu tiên cao nhất
+                return (r, c)      # cháº·n chuá»—i 4+ -> Æ°u tiÃªn cao nháº¥t
             elif max_len == 3 and block_three is None:
                 block_three = (r, c)
 
@@ -233,13 +232,13 @@ def find_block_move(board, player):
     return None
 
 
-# ================== HÀM TÌM NƯỚC TẤN CÔNG BẮT BUỘC ==================
+# ================== HÃ€M TÃŒM NÆ¯á»šC Táº¤N CÃ”NG Báº®T BUá»˜C ==================
 
 def find_attack_move(board, player):
     """
-    Tìm nước đi TẤN CÔNG cho player (AI):
-    Chỉ ưu tiên các nước ĐÁNH VÀO LÀ THẮNG NGAY (chuỗi >=5).
-    Không ưu tiên riêng cho 3 -> 4.
+    TÃ¬m nÆ°á»›c Ä‘i Táº¤N CÃ”NG cho player (AI):
+    Chá»‰ Æ°u tiÃªn cÃ¡c nÆ°á»›c ÄÃNH VÃ€O LÃ€ THáº®NG NGAY (chuá»—i >=5).
+    KhÃ´ng Æ°u tiÃªn riÃªng cho 3 -> 4.
     """
     size = len(board)
 
@@ -248,7 +247,7 @@ def find_attack_move(board, player):
             if board[r][c] != EMPTY:
                 continue
 
-            # Giả lập player đánh vào (r, c)
+            # Giáº£ láº­p player Ä‘Ã¡nh vÃ o (r, c)
             board[r][c] = player
 
             max_len = 1
@@ -268,21 +267,21 @@ def find_attack_move(board, player):
                 if length > max_len:
                     max_len = length
 
-            board[r][c] = EMPTY  # hoàn tác
+            board[r][c] = EMPTY  # hoÃ n tÃ¡c
 
             if max_len >= 5:
-                # Đánh vào là có chuỗi 5+ -> chọn ngay
+                # ÄÃ¡nh vÃ o lÃ  cÃ³ chuá»—i 5+ -> chá»n ngay
                 return (r, c)
 
-    # Không có nước thắng ngay
+    # KhÃ´ng cÃ³ nÆ°á»›c tháº¯ng ngay
     return None
 
 
 
-# ================== MINIMAX + ALPHA–BETA PRUNING ==================
+# ================== MINIMAX + ALPHAâ€“BETA PRUNING ==================
 
 def minimax_ab(board, depth, alpha, beta, maximizing, player):
-    """Minimax có cắt tỉa alpha–beta, trả về (giá trị, nước đi tốt nhất)."""
+    """Minimax cÃ³ cáº¯t tá»‰a alphaâ€“beta, tráº£ vá» (giÃ¡ trá»‹, nÆ°á»›c Ä‘i tá»‘t nháº¥t)."""
     winner = check_winner(board)
     if winner == player:
         return 10_000, None
@@ -333,14 +332,14 @@ def minimax_ab(board, depth, alpha, beta, maximizing, player):
         return best_val, best_move
 
 
-# ================== HÀM CHỌN NƯỚC ĐI CUỐI CÙNG ==================
+# ================== HÃ€M CHá»ŒN NÆ¯á»šC ÄI CUá»I CÃ™NG ==================
 
 def find_best_move(board, player, depth=3):
     """
-    Thứ tự ưu tiên:
-    1) Nước TẤN CÔNG (thắng ngay hoặc tạo chuỗi 4).
-    2) Nước CHẶN (chuỗi 4, rồi chuỗi 3 của đối thủ).
-    3) Minimax + Alpha–Beta.
+    Thá»© tá»± Æ°u tiÃªn:
+    1) NÆ°á»›c Táº¤N CÃ”NG (tháº¯ng ngay hoáº·c táº¡o chuá»—i 4).
+    2) NÆ°á»›c CHáº¶N (chuá»—i 4, rá»“i chuá»—i 3 cá»§a Ä‘á»‘i thá»§).
+    3) Minimax + Alphaâ€“Beta.
     """
 
 
@@ -352,7 +351,7 @@ def find_best_move(board, player, depth=3):
     if block_move is not None:
         return block_move
 
-    # 3. Không có tấn công/chặn đặc biệt, dùng minimax
+    # 3. KhÃ´ng cÃ³ táº¥n cÃ´ng/cháº·n Ä‘áº·c biá»‡t, dÃ¹ng minimax
     _, move = minimax_ab(board, depth, -float("inf"), float("inf"), True, player)
     if move is None:
         moves = generate_legal_moves(board)
@@ -361,9 +360,15 @@ def find_best_move(board, player, depth=3):
     return move
 
 
-# ================== VÍ DỤ CHẠY THỬ TRONG CONSOLE ==================
 
-if __name__ == "__main__":
-    board = [[EMPTY for _ in range(SIZE)] for _ in range(SIZE)]
-    best = find_best_move(board, X, depth=3)
-    print("Best move for X:", best)
+class CaroAI:
+    def __init__(self, depth=3):
+        self.depth = depth
+
+    def get_move(self, board, level=1):
+        # Dễ: depth=2, Vừa: depth=3, Khó: depth=4
+        depth = level + 1
+        return find_best_move(board, -1, depth)
+
+    def find_best_move(self, board, player):
+        return find_best_move(board, player, self.depth)

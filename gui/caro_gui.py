@@ -367,11 +367,20 @@ class CaroGUI:
 
     async def ai_move(self):
         await asyncio.sleep(0.3)
-        try: m = self.ai.get_move(self.board_logic.board, level=self.level)
-        except TypeError: m = self.ai.get_move(self.board_logic.board)
+        try: 
+            m = self.ai.get_move(self.board_logic.board, level=self.level)
+        except TypeError: 
+            m = self.ai.get_move(self.board_logic.board)
+        except Exception as e:
+            print(f"AI Error: {e}")
+            return
+        
         if m:
             self.move(m[0], m[1], -1)
+            self.page.update()
             self.check_win_gui(m[0], m[1], -1)
+        else:
+            print("AI returned None move")
 
 
     async def run_mvm(self):
